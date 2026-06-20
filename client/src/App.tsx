@@ -5,7 +5,10 @@ import { Room } from "colyseus.js";
 import { joinWorld, getStateCallbacks, pingServer } from "./network/colyseus";
 import { World } from "./components/World";
 import { MobileControls } from "./components/MobileControls";
+import { RadialEmoteWheel } from "./components/RadialEmoteWheel";
+import { CharacterPreview } from "./components/CharacterPreview";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { useMobileInput, requestMobileEmote } from "./context/MobileInputContext";
 
 // connecting -> verifying the server is reachable
 // offline    -> server could not be reached (retrying)
@@ -14,6 +17,7 @@ type Phase = "connecting" | "offline" | "ready";
 
 export default function App() {
   const isMobile = useIsMobile();
+  const mobileInput = useMobileInput();
   const [phase, setPhase] = useState<Phase>("connecting");
   const [name, setName] = useState("");
   const [joinedName, setJoinedName] = useState<string | null>(null);
@@ -136,8 +140,9 @@ export default function App() {
   if (!joinedName) {
     return (
       <div className="login">
-        <div className="login-card">
+        <div className="login-card login-card-wide">
           <h1>IskaWorld</h1>
+          <CharacterPreview color="#38bdf8" />
           <p className="connected">● Connected to server</p>
           <p>Enter your name to join IskaWorld</p>
           {joinError && <p className="error">{joinError}</p>}
@@ -161,21 +166,21 @@ export default function App() {
   // --- Phase 3: in the world — show the scene, characters, and online count. ---
   return (
     <>
-      <div className="hud">
-        <div><b>IskaWorld</b> — playing as <b>{joinedName}</b></div>
-        <div className="hud-desktop">
-          <div>Move: <b>WASD</b> / Arrow keys</div>
-          <div>Jump: <b>Space</b></div>
-          <div>Rotate camera: <b>Q</b> / <b>E</b> or drag mouse</div>
-        </div>
-        <div className="hud-mobile">
-          <div>Joystick to move · Jump button · Drag anywhere to look</div>
-        </div>
-        <div>Students online: <b>{count}</b></div>
+      <div className="hud hud-minimal">
+        <span className="hud-connected">● Connected</span>
+        <span>
+          Online: <b>{count}</b>
+        </span>
       </div>
-      <div className="status">{status}</div>
 
       {room && isMobile && <MobileControls />}
+
+      {room && !isMobile && mobileInput && (
+        <RadialEmoteWheel
+          className="radial-emote-desktop"
+          onSelect={(id) => requestMobileEmote(mobileInput, id)}
+        />
+      )}
 
       {!room && (
         <div className="joining">

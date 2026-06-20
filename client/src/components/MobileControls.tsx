@@ -1,8 +1,8 @@
 import { useCallback, useRef } from "react";
-import { useMobileInput } from "../context/MobileInputContext";
+import { useMobileInput, requestMobileEmote } from "../context/MobileInputContext";
+import { RadialEmoteWheel } from "./RadialEmoteWheel";
 
 const JOYSTICK_RADIUS = 56;
-const KNOB_RADIUS = 24;
 const DEAD_ZONE = 0.12;
 
 function clampKnob(dx: number, dy: number) {
@@ -147,6 +147,11 @@ export function MobileControls() {
       >
         Jump
       </button>
+
+      <RadialEmoteWheel
+        className="radial-emote-mobile"
+        onSelect={(id) => requestMobileEmote(input, id)}
+      />
     </div>
   );
 }

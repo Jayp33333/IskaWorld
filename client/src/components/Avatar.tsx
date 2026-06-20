@@ -1,27 +1,52 @@
+import { useRef, type MutableRefObject } from "react";
 import { Billboard, Text } from "@react-three/drei";
+import { CharacterAnimState, CharacterModel } from "./CharacterModel";
+import type { EmoteId } from "../character/emotes";
 
-// Simple placeholder mesh for a student. Replace with a GLTF character later.
-export function Avatar({ color, name }: { color: string; name: string }) {
+interface Props {
+  color: string;
+  name: string;
+  animState: MutableRefObject<CharacterAnimState>;
+}
+
+export function Avatar({ color, name, animState }: Props) {
   return (
     <group>
-      {/* Body */}
-      <mesh castShadow position={[0, 0.6, 0]}>
-        <capsuleGeometry args={[0.3, 0.6, 4, 12]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
+      <CharacterModel color={color} animState={animState} />
 
-      {/* Nose / facing indicator (points along +Z, the forward direction) */}
-      <mesh position={[0, 0.7, 0.35]} rotation={[Math.PI / 2, 0, 0]}>
-        <coneGeometry args={[0.12, 0.25, 8]} />
-        <meshStandardMaterial color="#0f172a" />
-      </mesh>
-
-      {/* Name tag */}
-      <Billboard position={[0, 1.6, 0]}>
-        <Text fontSize={0.28} color="#e2e8f0" anchorX="center" anchorY="middle" outlineWidth={0.02} outlineColor="#0f172a">
+      <Billboard position={[0, 1.85, 0]}>
+        <Text
+          fontSize={0.28}
+          color="#e2e8f0"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.02}
+          outlineColor="#0f172a"
+        >
           {name}
         </Text>
       </Billboard>
     </group>
   );
+}
+
+export function createCharacterAnimState(): CharacterAnimState {
+  return {
+    isMoving: false,
+    isGrounded: true,
+    emoteSeq: 0,
+    emoteId: null,
+  };
+}
+
+export function useCharacterAnimState(): MutableRefObject<CharacterAnimState> {
+  return useRef<CharacterAnimState>(createCharacterAnimState());
+}
+
+export function triggerEmote(
+  animState: MutableRefObject<CharacterAnimState>,
+  id: EmoteId
+) {
+  animState.current.emoteId = id;
+  animState.current.emoteSeq += 1;
 }

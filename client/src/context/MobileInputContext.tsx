@@ -1,4 +1,5 @@
 import { createContext, useContext, useRef, type ReactNode } from "react";
+import type { EmoteId } from "../character/emotes";
 
 export interface MobileInput {
   moveX: number;
@@ -6,6 +7,8 @@ export interface MobileInput {
   jump: boolean;
   lookDeltaX: number;
   lookActive: boolean;
+  emoteSeq: number;
+  emoteId: EmoteId | null;
 }
 
 const MobileInputContext = createContext<MobileInput | null>(null);
@@ -17,6 +20,8 @@ export function MobileInputProvider({ children }: { children: ReactNode }) {
     jump: false,
     lookDeltaX: 0,
     lookActive: false,
+    emoteSeq: 0,
+    emoteId: null,
   }).current;
   return (
     <MobileInputContext.Provider value={input}>
@@ -27,4 +32,9 @@ export function MobileInputProvider({ children }: { children: ReactNode }) {
 
 export function useMobileInput() {
   return useContext(MobileInputContext);
+}
+
+export function requestMobileEmote(input: MobileInput, id: EmoteId) {
+  input.emoteId = id;
+  input.emoteSeq += 1;
 }

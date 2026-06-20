@@ -30,17 +30,20 @@ body,
   backdrop-filter: blur(4px);
 }
 
-.hud b {
-  color: #38bdf8;
+.hud-minimal {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
 }
 
-.status {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  z-index: 10;
-  color: #94a3b8;
-  font-size: 12px;
+.hud-connected {
+  color: #34d399;
+  font-weight: 600;
+}
+
+.hud b {
+  color: #38bdf8;
 }
 
 .login {
@@ -63,6 +66,37 @@ body,
   border: 1px solid rgba(148, 163, 184, 0.25);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
+}
+
+.login-card-wide {
+  width: min(420px, 92vw);
+}
+
+.character-preview {
+  width: 100%;
+  height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: radial-gradient(circle at 50% 40%, #1e293b, #0b1020 75%);
+}
+
+.character-preview canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.character-preview-hint {
+  margin: 0;
+  padding: 8px 10px 10px;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  color: #64748b !important;
+}
+
+.character-preview-hint code {
+  color: #94a3b8;
+  font-size: 10px;
 }
 
 .login-card h1 {
@@ -162,15 +196,128 @@ body,
   display: none;
 }
 
+/* Radial emote wheel (mobile + desktop) */
+.radial-emote {
+  position: absolute;
+  z-index: 16;
+  pointer-events: none;
+}
+
+.radial-emote-mobile {
+  right: 24px;
+  left: auto;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.radial-emote-desktop {
+  right: 28px;
+  left: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+}
+
+.radial-emote-backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: rgba(11, 16, 32, 0.12);
+  pointer-events: auto;
+  z-index: 0;
+}
+
+.radial-emote-wheel {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  pointer-events: auto;
+}
+
+.radial-emote-toggle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.82);
+  color: #e2e8f0;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  z-index: 2;
+}
+
+.radial-emote-toggle svg,
+.radial-emote-toggle-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.radial-emote-toggle.active {
+  transform: scale(1.06);
+  background: rgba(56, 189, 248, 0.28);
+  border-color: rgba(56, 189, 248, 0.65);
+}
+
+.radial-emote-toggle:active {
+  transform: scale(0.96);
+}
+
+.radial-emote-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 1;
+  transform: translate(0, 0) scale(0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1) var(--emote-delay, 0s),
+    opacity 0.18s ease var(--emote-delay, 0s),
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.radial-emote-wheel.open .radial-emote-item {
+  transform: translate(var(--emote-x), var(--emote-y)) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.radial-emote-item:active {
+  background: rgba(56, 189, 248, 0.35);
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translate(var(--emote-x), var(--emote-y)) scale(0.94);
+}
+
+.radial-emote-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
 @media (hover: none) and (pointer: coarse) {
-  .hud-desktop {
-    display: none;
-  }
-
-  .hud-mobile {
-    display: block;
-  }
-
   .mobile-controls {
     display: block;
     position: absolute;
@@ -237,9 +384,5 @@ body,
   .jump-btn:active {
     background: rgba(14, 165, 233, 0.95);
     transform: scale(0.96);
-  }
-
-  .status {
-    bottom: 140px;
   }
 }

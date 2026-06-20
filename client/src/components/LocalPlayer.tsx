@@ -2,16 +2,17 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Room } from "colyseus.js";
 import * as THREE from "three";
-import { Avatar } from "./Avatar";
+import { Avatar, triggerEmote, useCharacterAnimState } from "./Avatar";
 import { useKeyboard } from "../hooks/useKeyboard";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useMobileInput } from "../context/MobileInputContext";
 import { collidesAt } from "../world/obstacles";
+import { EMOTE_BY_KEY } from "../character/emotes";
 
-const SPEED = 6; // units per second
+const SPEED = 6; // units per second — raise/lower with ANIM_PLAYBACK.walk in CharacterModel.tsx
 const SEND_INTERVAL = 1 / 15; // send ~15 updates/sec
 const GRAVITY = -25; // units per second^2
-const JUMP_SPEED = 9; // initial upward velocity
+const JUMP_SPEED = 9; // initial upward velocity — air time ≈ 2 * JUMP_SPEED / |GRAVITY|
 const PLAYER_RADIUS = 0.35;
 
 const CAM_DISTANCE = 9; // how far the camera sits behind the player
@@ -57,6 +58,18 @@ export function LocalPlayer({ room, name, color }: Props) {
   const knockX = useRef(0);
   const knockZ = useRef(0);
   const shoveTimer = useRef(0);
+  const animState = useCharacterAnimState();
+  const lastMobileEmoteSeq = useRef(0);
+
+  // Start at the server-assigned spawn point (same as other clients see you).
+  useEffect(() => {
+    const self = (room.state.players as any).get(room.sessionId);
+    const g = group.current;
+    if (!self || !g) return;
+    g.position.set(self.x, self.y, self.z);
+    rotation.current = self.rotation;
+    g.rotation.y = self.rotation;
+  }, [room]);
 
   // Receive shove impulses relayed by the server and turn them into knockback.
   useEffect(() => {
@@ -95,6 +108,21 @@ export function LocalPlayer({ room, name, color }: Props) {
     };
   }, [gl, isMobile]);
 
+  // Desktop: number keys 1–7 trigger emotes.
+  useEffect(() => {
+    if (isMobile) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const emoteId = EMOTE_BY_KEY[e.code];
+      if (!emoteId) return;
+      e.preventDefault();
+      triggerEmote(animState, emoteId);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isMobile, animState]);
+
   useFrame((_, delta) => {
     const g = group.current;
     if (!g) return;
@@ -122,7 +150,14 @@ export function LocalPlayer({ room, name, color }: Props) {
       inR += mobileInput.moveX;
     }
 
+    if (mobileInput && mobileInput.emoteSeq !== lastMobileEmoteSeq.current && mobileInput.emoteId) {
+      lastMobileEmoteSeq.current = mobileInput.emoteSeq;
+      triggerEmote(animState, mobileInput.emoteId);
+    }
+
     const isMoving = Math.hypot(inF, inR) > 0.05;
+    animState.current.isMoving = isMoving;
+    animState.current.isGrounded = grounded.current;
 
     // Mobile touch look: update target yaw, then ease the camera toward it.
     if (isMobile && mobileInput) {
@@ -248,7 +283,7 @@ export function LocalPlayer({ room, name, color }: Props) {
 
   return (
     <group ref={group}>
-      <Avatar color={color} name={name} />
+      <Avatar color={color} name={name} animState={animState} />
     </group>
   );
 }
