@@ -2,10 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import { Room } from "colyseus.js";
-import { joinWorld, getStateCallbacks } from "./network/colyseus";
+import { joinWorld, getStateCallbacks, pingServer } from "./network/colyseus";
 import { World } from "./components/World";
 
+// connecting -> verifying the server is reachable
+// offline    -> server could not be reached (retrying)
+// ready      -> server is up; show name entry / enter the world
+type Phase = "connecting" | "offline" | "ready";
+
 export default function App() {
+  const [phase, setPhase] = useState<Phase>("connecting");
   const [name, setName] = useState("");
   const [joinedName, setJoinedName] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
@@ -13,11 +19,31 @@ export default function App() {
   const [count, setCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Step 1: confirm the server is reachable before showing the name entry.
+  useEffect(() => {
+    if (phase !== "connecting") return;
+    let active = true;
+    pingServer().then((ok) => {
+      if (active) setPhase(ok ? "ready" : "offline");
+    });
+    return () => {
+      active = false;
+    };
+  }, [phase]);
+
+  // While offline, automatically re-check the server every few seconds.
+  useEffect(() => {
+    if (phase !== "offline") return;
+    const t = setTimeout(() => setPhase("connecting"), 4000);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  // Step 3: once a name is entered, join the world room.
   useEffect(() => {
     if (!joinedName) return;
     let active = true;
     let joined: Room | null = null;
-    setStatus("Connecting to IskaWorld...");
+    setStatus("Entering IskaWorld...");
 
     joinWorld(joinedName)
       .then((r) => {
@@ -36,11 +62,18 @@ export default function App() {
         $(r.state).players.onRemove(() => updateCount());
         updateCount();
 
-        r.onLeave(() => setStatus("Disconnected"));
+        r.onLeave(() => {
+          setStatus("Disconnected");
+          setRoom(null);
+          setJoinedName(null);
+          setPhase("connecting");
+        });
       })
       .catch((e) => {
         console.error(e);
-        setStatus("Failed to connect — is the server running on :2567?");
+        setStatus("Failed to join the world.");
+        setJoinedName(null);
+        setPhase("offline");
       });
 
     return () => {
@@ -54,12 +87,40 @@ export default function App() {
     if (trimmed.length > 0) setJoinedName(trimmed.slice(0, 16));
   };
 
-  // Name-entry screen, shown before joining.
+  // --- Phase 1: verifying the connection to the server. ---
+  if (phase === "connecting") {
+    return (
+      <div className="login">
+        <div className="login-card">
+          <h1>IskaWorld</h1>
+          <div className="spinner" />
+          <p>Connecting to the server…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Phase 1b: server could not be reached. ---
+  if (phase === "offline") {
+    return (
+      <div className="login">
+        <div className="login-card">
+          <h1>IskaWorld</h1>
+          <p className="error">Can't reach the server.</p>
+          <p>It may be starting up — retrying automatically…</p>
+          <button onClick={() => setPhase("connecting")}>Retry now</button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Phase 2: connected to the server, ask for a name. ---
   if (!joinedName) {
     return (
       <div className="login">
         <div className="login-card">
           <h1>IskaWorld</h1>
+          <p className="connected">● Connected to server</p>
           <p>Enter your name to join IskaWorld</p>
           <input
             ref={inputRef}
@@ -78,6 +139,7 @@ export default function App() {
     );
   }
 
+  // --- Phase 3: in the world — show the scene, characters, and online count. ---
   return (
     <>
       <div className="hud">
@@ -88,6 +150,13 @@ export default function App() {
         <div>Students online: <b>{count}</b></div>
       </div>
       <div className="status">{status}</div>
+
+      {!room && (
+        <div className="joining">
+          <div className="spinner" />
+          <p>Entering the world…</p>
+        </div>
+      )}
 
       <Canvas shadows camera={{ position: [0, 6, 9], fov: 60 }}>
         <Sky sunPosition={[100, 20, 100]} />
