@@ -445,6 +445,30 @@ body,
   pointer-events: auto;
 }
 
+.chat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #f43f5e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9);
+}
+
+.chat-fab .chat-badge {
+  margin-left: 2px;
+}
+
+.chat-player-chip .chat-badge {
+  margin-left: 2px;
+}
+
 .chat-fab svg {
   width: 18px;
   height: 18px;
@@ -522,6 +546,10 @@ body,
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .chat-tab.active {
@@ -557,6 +585,7 @@ body,
 }
 
 .chat-player-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;

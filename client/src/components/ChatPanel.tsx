@@ -51,10 +51,12 @@ function MessageBubble({
 function PlayerChip({
   player,
   active,
+  unread,
   onClick,
 }: {
   player: OnlinePlayer;
   active: boolean;
+  unread?: number;
   onClick: () => void;
 }) {
   return (
@@ -65,7 +67,17 @@ function PlayerChip({
     >
       <span className="chat-player-dot" style={{ background: player.color }} />
       <span>{player.name}</span>
+      <ChatBadge count={unread ?? 0} />
     </button>
+  );
+}
+
+function ChatBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="chat-badge" aria-label={`${count} unread messages`}>
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }
 
@@ -83,7 +95,19 @@ export function ChatPanel({ room }: Props) {
   const [tab, setTab] = useState<ChatTab>("world");
   const [draft, setDraft] = useState("");
   const [activeDmId, setActiveDmId] = useState<string | null>(null);
+  const [worldUnread, setWorldUnread] = useState(0);
+  const [privateUnread, setPrivateUnread] = useState<Record<string, number>>({});
   const messagesRef = useRef<HTMLDivElement>(null);
+  const worldLenRef = useRef(0);
+  const dmLenRef = useRef<Record<string, number>>({});
+  const worldInitRef = useRef(false);
+  const dmInitRef = useRef(false);
+
+  const totalPrivateUnread = useMemo(
+    () => Object.values(privateUnread).reduce((sum, n) => sum + n, 0),
+    [privateUnread]
+  );
+  const totalUnread = worldUnread + totalPrivateUnread;
 
   const activeDmPlayer = useMemo(
     () => onlinePlayers.find((p) => p.id === activeDmId) ?? null,
@@ -107,6 +131,80 @@ export function ChatPanel({ room }: Props) {
       setActiveDmId(onlinePlayers[0].id);
     }
   }, [tab, activeDmId, onlinePlayers]);
+
+  useEffect(() => {
+    if (!worldInitRef.current) {
+      worldInitRef.current = true;
+      worldLenRef.current = worldMessages.length;
+      return;
+    }
+
+    if (worldMessages.length <= worldLenRef.current) {
+      worldLenRef.current = worldMessages.length;
+      return;
+    }
+
+    const newMessages = worldMessages.slice(worldLenRef.current);
+    worldLenRef.current = worldMessages.length;
+
+    const shouldNotify = !open || tab !== "world";
+    if (!shouldNotify) return;
+
+    const incoming = newMessages.filter((msg) => msg.fromId !== selfId).length;
+    if (incoming > 0) {
+      setWorldUnread((count) => count + incoming);
+    }
+  }, [worldMessages, open, tab, selfId]);
+
+  useEffect(() => {
+    if (!dmInitRef.current) {
+      dmInitRef.current = true;
+      for (const [playerId, messages] of Object.entries(dmThreads)) {
+        dmLenRef.current[playerId] = messages.length;
+      }
+      return;
+    }
+
+    for (const [playerId, messages] of Object.entries(dmThreads)) {
+      const prevCount = dmLenRef.current[playerId] ?? 0;
+      if (messages.length <= prevCount) continue;
+
+      const newMessages = messages.slice(prevCount);
+      dmLenRef.current[playerId] = messages.length;
+
+      const shouldNotify = !open || tab !== "private" || activeDmId !== playerId;
+      if (!shouldNotify) continue;
+
+      const incoming = newMessages.filter((msg) => msg.fromId !== selfId).length;
+      if (incoming > 0) {
+        setPrivateUnread((prev) => ({
+          ...prev,
+          [playerId]: (prev[playerId] ?? 0) + incoming,
+        }));
+      }
+    }
+  }, [dmThreads, open, tab, activeDmId, selfId]);
+
+  useEffect(() => {
+    if (open && tab === "world") {
+      setWorldUnread(0);
+    }
+  }, [open, tab, worldMessages.length]);
+
+  useEffect(() => {
+    if (open && tab === "private" && activeDmId) {
+      setPrivateUnread((prev) => ({ ...prev, [activeDmId]: 0 }));
+    }
+  }, [open, tab, activeDmId, dmThreads[activeDmId ?? ""]?.length]);
+
+  const selectPrivateTab = () => setTab("private");
+
+  const selectWorldTab = () => setTab("world");
+
+  const selectDmPlayer = (playerId: string) => {
+    setActiveDmId(playerId);
+    setPrivateUnread((prev) => ({ ...prev, [playerId]: 0 }));
+  };
 
   const submit = () => {
     const text = draft.trim();
@@ -133,6 +231,7 @@ export function ChatPanel({ room }: Props) {
       >
         <HiChatBubbleLeftRight />
         <span>Chat</span>
+        <ChatBadge count={totalUnread} />
       </button>
     );
   }
@@ -160,16 +259,18 @@ export function ChatPanel({ room }: Props) {
         <button
           type="button"
           className={`chat-tab ${tab === "world" ? "active" : ""}`}
-          onClick={() => setTab("world")}
+          onClick={selectWorldTab}
         >
-          World
+          <span>World</span>
+          <ChatBadge count={worldUnread} />
         </button>
         <button
           type="button"
           className={`chat-tab ${tab === "private" ? "active" : ""}`}
-          onClick={() => setTab("private")}
+          onClick={selectPrivateTab}
         >
-          Private
+          <span>Private</span>
+          <ChatBadge count={totalPrivateUnread} />
         </button>
       </div>
 
@@ -185,7 +286,8 @@ export function ChatPanel({ room }: Props) {
                   key={player.id}
                   player={player}
                   active={player.id === activeDmId}
-                  onClick={() => setActiveDmId(player.id)}
+                  unread={privateUnread[player.id] ?? 0}
+                  onClick={() => selectDmPlayer(player.id)}
                 />
               ))}
             </div>
