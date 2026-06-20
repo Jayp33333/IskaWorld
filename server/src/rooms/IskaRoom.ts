@@ -14,6 +14,21 @@ interface ShovePayload {
   dz: number;
 }
 
+interface ChatPayload {
+  text: string;
+}
+
+interface WhisperPayload {
+  target: string;
+  text: string;
+}
+
+const MAX_CHAT_LENGTH = 200;
+
+function sanitizeChat(text: string): string {
+  return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim().slice(0, MAX_CHAT_LENGTH);
+}
+
 const COLORS = [
   "#ef4444", "#f97316", "#eab308", "#22c55e",
   "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
@@ -42,6 +57,45 @@ export class IskaRoom extends Room<IskaState> {
       if (target) {
         target.send("shoved", { dx: data.dx, dz: data.dz });
       }
+    });
+
+    this.onMessage("chat", (client, data: ChatPayload) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      const text = sanitizeChat(data.text);
+      if (!text) return;
+
+      this.broadcast("chat", {
+        fromId: client.sessionId,
+        fromName: player.name,
+        fromColor: player.color,
+        text,
+        timestamp: Date.now(),
+      });
+    });
+
+    this.onMessage("whisper", (client, data: WhisperPayload) => {
+      const player = this.state.players.get(client.sessionId);
+      const target = this.clients.find((c) => c.sessionId === data.target);
+      const targetPlayer = this.state.players.get(data.target);
+      if (!player || !target || !targetPlayer || target.sessionId === client.sessionId) return;
+
+      const text = sanitizeChat(data.text);
+      if (!text) return;
+
+      const payload = {
+        fromId: client.sessionId,
+        fromName: player.name,
+        fromColor: player.color,
+        toId: target.sessionId,
+        toName: targetPlayer.name,
+        text,
+        timestamp: Date.now(),
+      };
+
+      client.send("whisper", payload);
+      target.send("whisper", payload);
     });
 
     console.log("IskaRoom created:", this.roomId);

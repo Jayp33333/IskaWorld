@@ -6,6 +6,7 @@ import { joinWorld, getStateCallbacks, pingServer } from "./network/colyseus";
 import { World } from "./components/World";
 import { MobileControls } from "./components/MobileControls";
 import { RadialEmoteWheel } from "./components/RadialEmoteWheel";
+import { ChatPanel } from "./components/ChatPanel";
 import { CharacterPreview } from "./components/CharacterPreview";
 import { useIsMobile } from "./hooks/useIsMobile";
 import { useMobileInput, requestMobileEmote } from "./context/MobileInputContext";
@@ -181,6 +182,8 @@ export default function App() {
           onSelect={(id) => requestMobileEmote(mobileInput, id)}
         />
       )}
+
+      {room && <ChatPanel room={room} />}
 
       {!room && (
         <div className="joining">
