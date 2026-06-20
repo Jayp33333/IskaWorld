@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
-import { useMobileInput, requestMobileEmote } from "../context/MobileInputContext";
+import { useMobileInput, requestMobileEmote, requestMobilePunch } from "../context/MobileInputContext";
 import { RadialEmoteWheel } from "./RadialEmoteWheel";
+import { FaHandFist } from "react-icons/fa6";
 
 const JOYSTICK_RADIUS = 56;
 const DEAD_ZONE = 0.12;
@@ -131,22 +132,36 @@ export function MobileControls() {
         <div ref={knobRef} className="joystick-knob" />
       </div>
 
-      <button
-        type="button"
-        className="jump-btn"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          setJump(true);
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation();
-          setJump(false);
-        }}
-        onPointerLeave={() => setJump(false)}
-        onPointerCancel={() => setJump(false)}
-      >
-        Jump
-      </button>
+      <div className="action-buttons">
+        <button
+          type="button"
+          className="jump-btn"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            setJump(true);
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation();
+            setJump(false);
+          }}
+          onPointerLeave={() => setJump(false)}
+          onPointerCancel={() => setJump(false)}
+        >
+          Jump
+        </button>
+
+        <button
+          type="button"
+          className="punch-btn"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            requestMobilePunch(input);
+          }}
+        >
+          <FaHandFist aria-hidden="true" />
+          <span>Punch</span>
+        </button>
+      </div>
 
       <RadialEmoteWheel
         className="radial-emote-mobile"

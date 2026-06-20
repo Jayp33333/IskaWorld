@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { MdEmojiEmotions } from "react-icons/md";
-import { EMOTE_LIST } from "../character/emotes";
+import { EMOTE_WHEEL_LIST } from "../character/emotes";
 import type { EmoteId } from "../character/emotes";
 
 const WHEEL_RADIUS = 92;
@@ -17,8 +17,8 @@ export function RadialEmoteWheel({ onSelect, className = "" }: Props) {
   const [open, setOpen] = useState(false);
 
   const slots = useMemo(() => {
-    const count = EMOTE_LIST.length;
-    return EMOTE_LIST.map((emote, index) => {
+    const count = EMOTE_WHEEL_LIST.length;
+    return EMOTE_WHEEL_LIST.map((emote, index) => {
       const t = count === 1 ? 0.5 : index / (count - 1);
       const angle = ARC_START + (ARC_END - ARC_START) * t;
       return {

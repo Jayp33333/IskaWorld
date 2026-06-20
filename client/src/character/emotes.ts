@@ -84,8 +84,13 @@ export const EMOTE_LIST = Object.entries(EMOTES).map(([id, def]) => ({
   ...def,
 }));
 
+// Punch is a combat action, not shown on the emote wheel.
+export const EMOTE_WHEEL_LIST = EMOTE_LIST.filter((emote) => emote.id !== "punch");
+
+export const PUNCH_EMOTE_ID = "punch" as const;
+
 export const EMOTE_BY_KEY: Partial<Record<string, EmoteId>> = Object.fromEntries(
-  EMOTE_LIST.map((e) => [e.key, e.id])
+  EMOTE_WHEEL_LIST.map((e) => [e.key, e.id])
 );
 
 export function isEmoteId(value: string): value is EmoteId {

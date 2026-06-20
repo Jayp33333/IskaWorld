@@ -61,3 +61,11 @@ export function playEmote(
   triggerEmote(animState, id);
   room.send("emote", { id });
 }
+
+export function playPunch(
+  room: Room,
+  animState: MutableRefObject<CharacterAnimState>
+) {
+  triggerEmote(animState, "punch");
+  room.send("emote", { id: "punch" });
+}

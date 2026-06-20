@@ -9,6 +9,7 @@ export interface MobileInput {
   lookActive: boolean;
   emoteSeq: number;
   emoteId: EmoteId | null;
+  punchSeq: number;
 }
 
 const MobileInputContext = createContext<MobileInput | null>(null);
@@ -22,6 +23,7 @@ export function MobileInputProvider({ children }: { children: ReactNode }) {
     lookActive: false,
     emoteSeq: 0,
     emoteId: null,
+    punchSeq: 0,
   }).current;
   return (
     <MobileInputContext.Provider value={input}>
@@ -37,4 +39,8 @@ export function useMobileInput() {
 export function requestMobileEmote(input: MobileInput, id: EmoteId) {
   input.emoteId = id;
   input.emoteSeq += 1;
+}
+
+export function requestMobilePunch(input: MobileInput) {
+  input.punchSeq += 1;
 }

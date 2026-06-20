@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Room } from "colyseus.js";
 import * as THREE from "three";
-import { Avatar, playEmote, useCharacterAnimState } from "./Avatar";
+import { Avatar, playEmote, playPunch, useCharacterAnimState } from "./Avatar";
 import { useKeyboard } from "../hooks/useKeyboard";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useMobileInput } from "../context/MobileInputContext";
@@ -23,9 +23,11 @@ const MOBILE_LOOK_SENSITIVITY = 0.004;
 const MOBILE_YAW_SMOOTH_IDLE = 3.5; // lower = smoother when standing still
 const MOBILE_YAW_SMOOTH_MOVE = 14; // snappier while walking
 
-const PP_MIN_DIST = 1.0; // players closer than this overlap
-const SHOVE_INTERVAL = 0.2; // seconds between shove impulses sent
-const SHOVE_POWER = 6; // knockback velocity applied when shoved
+const PP_MIN_DIST = 1.0; // players closer than this overlap (soft separation only)
+const PUNCH_RANGE = 1.45;
+const PUNCH_ANGLE = 0.45; // how directly in front a target must be
+const PUNCH_COOLDOWN = 0.55;
+const PUNCH_KNOCKBACK = 9;
 const KNOCKBACK_DECAY = 0.12; // smaller = knockback dies faster
 
 interface Props {
@@ -52,14 +54,16 @@ export function LocalPlayer({ room, name, color }: Props) {
   // Camera orbit angle (yaw) around the player.
   const camYaw = useRef(0);
   const camYawTarget = useRef(0);
-  const dragging = useRef(false);
+  const pointerLocked = useRef(false);
 
   // Knockback velocity from being shoved by other players.
   const knockX = useRef(0);
   const knockZ = useRef(0);
-  const shoveTimer = useRef(0);
+  const punchCooldown = useRef(0);
   const animState = useCharacterAnimState();
   const lastMobileEmoteSeq = useRef(0);
+  const lastMobilePunchSeq = useRef(0);
+  const lockHintEl = useRef<HTMLDivElement | null>(null);
 
   // Start at the server-assigned spawn point (same as other clients see you).
   useEffect(() => {
@@ -74,41 +78,114 @@ export function LocalPlayer({ room, name, color }: Props) {
   // Receive shove impulses relayed by the server and turn them into knockback.
   useEffect(() => {
     const handler = (msg: { dx: number; dz: number }) => {
-      knockX.current += msg.dx * SHOVE_POWER;
-      knockZ.current += msg.dz * SHOVE_POWER;
+      knockX.current += msg.dx * PUNCH_KNOCKBACK;
+      knockZ.current += msg.dz * PUNCH_KNOCKBACK;
     };
     room.onMessage("shoved", handler);
     // colyseus.js keeps one handler per message type, so no manual cleanup.
   }, [room]);
 
-  // Desktop: mouse drag on the canvas to orbit the camera.
-  // Mobile uses the dedicated look zone in MobileControls (touch lacks movementX).
+  const tryPunch = useCallback(() => {
+    if (punchCooldown.current > 0) return;
+    const g = group.current;
+    if (!g) return;
+
+    punchCooldown.current = PUNCH_COOLDOWN;
+    playPunch(room, animState);
+
+    // Punch toward where the camera is looking (desktop) / last facing (mobile).
+    const facingX = -Math.sin(camYaw.current);
+    const facingZ = -Math.cos(camYaw.current);
+    g.rotation.y = Math.atan2(facingX, facingZ);
+    rotation.current = g.rotation.y;
+
+    (room.state.players as any).forEach((p: any, id: string) => {
+      if (id === room.sessionId) return;
+
+      const ox = p.x - g.position.x;
+      const oz = p.z - g.position.z;
+      const dist = Math.hypot(ox, oz);
+      if (dist > PUNCH_RANGE || dist < 0.0001) return;
+
+      const nx = ox / dist;
+      const nz = oz / dist;
+      const inFront = nx * facingX + nz * facingZ;
+      if (inFront < PUNCH_ANGLE) return;
+
+      room.send("shove", { target: id, dx: nx, dz: nz });
+    });
+  }, [room, animState]);
+
+  // Desktop: pointer lock for camera look, left click to punch.
   useEffect(() => {
     if (isMobile) return;
 
     const canvas = gl.domElement;
-    const onDown = () => {
-      dragging.current = true;
+
+    if (!lockHintEl.current) {
+      const hint = document.createElement("div");
+      hint.className = "pointer-lock-hint";
+      hint.textContent =
+        "Click the game to lock mouse · Move mouse to look · Left click punch · Esc unlock";
+      document.body.appendChild(hint);
+      lockHintEl.current = hint;
+    }
+
+    const syncLockState = () => {
+      const locked = document.pointerLockElement === canvas;
+      pointerLocked.current = locked;
+      if (lockHintEl.current) {
+        lockHintEl.current.style.display = locked ? "none" : "block";
+      }
     };
-    const onUp = () => {
-      dragging.current = false;
+
+    const requestLock = () => {
+      if (!canvas.isConnected) return;
+      void canvas.requestPointerLock().catch(() => {});
     };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+
+      if (document.pointerLockElement !== canvas) {
+        requestLock();
+        return;
+      }
+
+      tryPunch();
+    };
+
     const onMove = (e: PointerEvent) => {
-      if (!dragging.current) return;
+      if (document.pointerLockElement !== canvas) return;
       camYaw.current -= e.movementX * MOUSE_SENSITIVITY;
       camYawTarget.current = camYaw.current;
     };
+
+    const onContextMenu = (e: Event) => e.preventDefault();
+
     canvas.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointermove", onMove);
+    document.addEventListener("pointermove", onMove);
+    canvas.addEventListener("contextmenu", onContextMenu);
+    document.addEventListener("pointerlockchange", syncLockState);
+
+    syncLockState();
+    requestAnimationFrame(requestLock);
+
     return () => {
       canvas.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("contextmenu", onContextMenu);
+      document.removeEventListener("pointerlockchange", syncLockState);
+      lockHintEl.current?.remove();
+      lockHintEl.current = null;
+      if (document.pointerLockElement === canvas) {
+        document.exitPointerLock();
+      }
     };
-  }, [gl, isMobile]);
+  }, [gl, isMobile, tryPunch]);
 
-  // Desktop: number keys 1–7 trigger emotes.
+  // Desktop: number keys trigger emotes (punch excluded).
   useEffect(() => {
     if (isMobile) return;
 
@@ -154,6 +231,13 @@ export function LocalPlayer({ room, name, color }: Props) {
       lastMobileEmoteSeq.current = mobileInput.emoteSeq;
       playEmote(room, animState, mobileInput.emoteId);
     }
+
+    if (mobileInput && mobileInput.punchSeq !== lastMobilePunchSeq.current) {
+      lastMobilePunchSeq.current = mobileInput.punchSeq;
+      tryPunch();
+    }
+
+    punchCooldown.current = Math.max(0, punchCooldown.current - delta);
 
     const isMoving = Math.hypot(inF, inR) > 0.05;
     animState.current.isMoving = isMoving;
@@ -232,9 +316,7 @@ export function LocalPlayer({ room, name, color }: Props) {
       }
     }
 
-    // Player-vs-player collision: separate myself and shove whoever I hit.
-    shoveTimer.current += delta;
-    const canShove = shoveTimer.current >= SHOVE_INTERVAL;
+    // Soft overlap separation only — no knockback unless punched.
     (room.state.players as any).forEach((p: any, id: string) => {
       if (id === room.sessionId) return;
       const ox = g.position.x - p.x;
@@ -245,19 +327,12 @@ export function LocalPlayer({ room, name, color }: Props) {
         const nz = oz / d;
         const overlap = PP_MIN_DIST - d;
 
-        // Push myself out of the overlap (half; they take the other half).
         const sx = g.position.x + nx * overlap * 0.5;
         if (!collidesAt(sx, g.position.z, PLAYER_RADIUS)) g.position.x = sx;
         const sz = g.position.z + nz * overlap * 0.5;
         if (!collidesAt(g.position.x, sz, PLAYER_RADIUS)) g.position.z = sz;
-
-        // Tell the other player's client to get knocked away from me.
-        if (canShove) {
-          room.send("shove", { target: id, dx: -nx, dz: -nz });
-        }
       }
     });
-    if (canShove) shoveTimer.current = 0;
 
     // Orbiting third-person camera that trails the player at camYaw.
     const desired = camTarget.current.set(
