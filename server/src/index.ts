@@ -53,7 +53,11 @@ if (process.env.MONITOR_USER && process.env.MONITOR_PASS) {
 const server = http.createServer(app);
 
 const gameServer = new Server({
-  transport: new WebSocketTransport({ server }),
+  transport: new WebSocketTransport({
+    server,
+    pingInterval: 2000,
+    pingMaxRetries: 2,
+  }),
 });
 
 gameServer.define("iska", IskaRoom);

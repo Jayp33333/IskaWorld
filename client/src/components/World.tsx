@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Room } from "colyseus.js";
 import { getStateCallbacks } from "../network/colyseus";
+import type { PresenceNotice } from "../hooks/usePlayerPresence";
 import { Ground } from "./Ground";
 import { LocalPlayer } from "./LocalPlayer";
 import { RemotePlayer } from "./RemotePlayer";
@@ -29,13 +30,24 @@ export function World({ room }: Props) {
       if (self) setMe({ name: self.name, color: self.color });
     };
 
+    const removeRemote = (sessionId: string) => {
+      setRemoteIds((prev) => prev.filter((id) => id !== sessionId));
+    };
+
     const offAdd = $(room.state).players.onAdd(() => refresh());
-    const offRemove = $(room.state).players.onRemove(() => refresh());
+    const offRemove = $(room.state).players.onRemove((_player: any, sessionId: string) => {
+      removeRemote(sessionId);
+    });
+    const offPresence = room.onMessage("presence", (data: PresenceNotice) => {
+      if (data.event === "left") removeRemote(data.id);
+      else if (data.event === "joined") refresh();
+    });
     refresh();
 
     return () => {
       offAdd?.();
       offRemove?.();
+      offPresence?.();
     };
   }, [room]);
 

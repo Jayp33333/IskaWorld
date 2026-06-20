@@ -68,7 +68,17 @@ export function useChat(room: Room) {
 
     refreshPlayers();
     const offAdd = $(room.state).players.onAdd(() => refreshPlayers());
-    const offRemove = $(room.state).players.onRemove(() => refreshPlayers());
+    const offRemove = $(room.state).players.onRemove((_player: any, sessionId: string) => {
+      setOnlinePlayers((prev) => prev.filter((p) => p.id !== sessionId));
+    });
+
+    const onPresence = (data: { event: string; id: string }) => {
+      if (data.event === "left") {
+        setOnlinePlayers((prev) => prev.filter((p) => p.id !== data.id));
+      } else if (data.event === "joined") {
+        refreshPlayers();
+      }
+    };
 
     const onChat = (msg: Omit<ChatMessage, "id">) => {
       const key = worldKey(msg);
@@ -92,12 +102,14 @@ export function useChat(room: Room) {
 
     const offChat = room.onMessage("chat", onChat);
     const offWhisper = room.onMessage("whisper", onWhisper);
+    const offPresence = room.onMessage("presence", onPresence);
 
     return () => {
       offAdd?.();
       offRemove?.();
       offChat?.();
       offWhisper?.();
+      offPresence?.();
     };
   }, [room]);
 

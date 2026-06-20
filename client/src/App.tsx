@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import { Room } from "colyseus.js";
-import { joinWorld, getStateCallbacks, pingServer } from "./network/colyseus";
+import { joinWorld, pingServer } from "./network/colyseus";
 import { World } from "./components/World";
 import { MobileControls } from "./components/MobileControls";
 import { RadialEmoteWheel } from "./components/RadialEmoteWheel";
 import { ChatPanel } from "./components/ChatPanel";
 import { CharacterPreview } from "./components/CharacterPreview";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { usePlayerPresence } from "./hooks/usePlayerPresence";
 import { useMobileInput, requestMobileEmote } from "./context/MobileInputContext";
 
 // connecting -> verifying the server is reachable
@@ -24,10 +25,10 @@ export default function App() {
   const [joinedName, setJoinedName] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [status, setStatus] = useState("");
-  const [count, setCount] = useState(0);
   const [joinError, setJoinError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRoomRef = useRef<Room | null>(null);
+  const { count, notice } = usePlayerPresence(room);
 
   // Step 1: confirm the server is reachable before showing the name entry.
   useEffect(() => {
@@ -68,13 +69,6 @@ export default function App() {
         setRoom(r);
         setStatus("Connected");
 
-        const players: any = r.state.players;
-        const $ = getStateCallbacks(r);
-        const updateCount = () => setCount(players.size);
-        $(r.state).players.onAdd(() => updateCount());
-        $(r.state).players.onRemove(() => updateCount());
-        updateCount();
-
         r.onLeave(() => {
           if (activeRoomRef.current !== r) return;
           activeRoomRef.current = null;
@@ -101,6 +95,18 @@ export default function App() {
       }
     };
   }, [joinedName]);
+
+  // Leave the room immediately when the tab closes or refreshes.
+  useEffect(() => {
+    if (!room) return;
+
+    const onPageHide = () => {
+      room.leave();
+    };
+
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [room]);
 
   const enterWorld = () => {
     const trimmed = name.trim();
@@ -173,6 +179,22 @@ export default function App() {
           Online: <b>{count}</b>
         </span>
       </div>
+
+      {notice && (
+        <div
+          className={`presence-notice presence-notice-${notice.event}`}
+          role="status"
+        >
+          <span
+            className="presence-notice-dot"
+            style={notice.color ? { background: notice.color } : undefined}
+          />
+          <span>
+            <b>{notice.name}</b>{" "}
+            {notice.event === "left" ? "left the world" : "joined the world"}
+          </span>
+        </div>
+      )}
 
       {room && isMobile && <MobileControls />}
 

@@ -137,12 +137,27 @@ export class IskaRoom extends Room<IskaState> {
     player.z = (Math.random() - 0.5) * 6;
 
     this.state.players.set(client.sessionId, player);
+
+    this.broadcast("presence", {
+      event: "joined",
+      id: client.sessionId,
+      name: player.name,
+      color: player.color,
+    });
     console.log(`${player.name} joined (${client.sessionId})`);
   }
 
   onLeave(client: Client) {
+    const player = this.state.players.get(client.sessionId);
+    if (player) {
+      this.broadcast("presence", {
+        event: "left",
+        id: client.sessionId,
+        name: player.name,
+      });
+    }
     this.state.players.delete(client.sessionId);
-    console.log(`${client.sessionId} left`);
+    console.log(`${player?.name ?? client.sessionId} left`);
   }
 
   onDispose() {
