@@ -26,6 +26,8 @@ export function MobileControls() {
   const joystickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const touchId = useRef<number | null>(null);
+  const lookId = useRef<number | null>(null);
+  const lastLookX = useRef(0);
   const center = useRef({ x: 0, y: 0 });
 
   const resetJoystick = useCallback(() => {
@@ -82,10 +84,42 @@ export function MobileControls() {
     input.jump = pressed;
   };
 
+  const onLookStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (lookId.current !== null || !input) return;
+    lookId.current = e.pointerId;
+    lastLookX.current = e.clientX;
+    input.lookActive = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onLookMove = (e: React.PointerEvent) => {
+    if (e.pointerId !== lookId.current || !input) return;
+    e.stopPropagation();
+    const dx = e.clientX - lastLookX.current;
+    lastLookX.current = e.clientX;
+    input.lookDeltaX += dx;
+  };
+
+  const onLookEnd = (e: React.PointerEvent) => {
+    if (e.pointerId !== lookId.current || !input) return;
+    e.stopPropagation();
+    lookId.current = null;
+    input.lookActive = false;
+  };
+
   if (!input) return null;
 
   return (
     <div className="mobile-controls">
+      <div
+        className="look-zone"
+        onPointerDown={onLookStart}
+        onPointerMove={onLookMove}
+        onPointerUp={onLookEnd}
+        onPointerCancel={onLookEnd}
+      />
+
       <div
         ref={joystickRef}
         className="joystick"

@@ -169,7 +169,7 @@ export default function App() {
           <div>Rotate camera: <b>Q</b> / <b>E</b> or drag mouse</div>
         </div>
         <div className="hud-mobile">
-          <div>Move with joystick · Jump button · Drag to look</div>
+          <div>Joystick to move · Jump button · Drag anywhere to look</div>
         </div>
         <div>Students online: <b>{count}</b></div>
       </div>

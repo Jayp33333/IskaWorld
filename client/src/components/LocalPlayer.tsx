@@ -18,6 +18,9 @@ const CAM_DISTANCE = 9; // how far the camera sits behind the player
 const CAM_HEIGHT = 6; // how high the camera floats
 const KEY_ROT_SPEED = 2.2; // radians/sec for Q/E
 const MOUSE_SENSITIVITY = 0.005; // radians per pixel dragged
+const MOBILE_LOOK_SENSITIVITY = 0.004;
+const MOBILE_YAW_SMOOTH_IDLE = 3.5; // lower = smoother when standing still
+const MOBILE_YAW_SMOOTH_MOVE = 14; // snappier while walking
 
 const PP_MIN_DIST = 1.0; // players closer than this overlap
 const SHOVE_INTERVAL = 0.2; // seconds between shove impulses sent
@@ -47,6 +50,7 @@ export function LocalPlayer({ room, name, color }: Props) {
 
   // Camera orbit angle (yaw) around the player.
   const camYaw = useRef(0);
+  const camYawTarget = useRef(0);
   const dragging = useRef(false);
 
   // Knockback velocity from being shoved by other players.
@@ -64,8 +68,11 @@ export function LocalPlayer({ room, name, color }: Props) {
     // colyseus.js keeps one handler per message type, so no manual cleanup.
   }, [room]);
 
-  // Mouse / touch drag on the canvas to orbit the camera.
+  // Desktop: mouse drag on the canvas to orbit the camera.
+  // Mobile uses the dedicated look zone in MobileControls (touch lacks movementX).
   useEffect(() => {
+    if (isMobile) return;
+
     const canvas = gl.domElement;
     const onDown = () => {
       dragging.current = true;
@@ -75,8 +82,8 @@ export function LocalPlayer({ room, name, color }: Props) {
     };
     const onMove = (e: PointerEvent) => {
       if (!dragging.current) return;
-      const sens = isMobile ? MOUSE_SENSITIVITY * 1.6 : MOUSE_SENSITIVITY;
-      camYaw.current -= e.movementX * sens;
+      camYaw.current -= e.movementX * MOUSE_SENSITIVITY;
+      camYawTarget.current = camYaw.current;
     };
     canvas.addEventListener("pointerdown", onDown);
     window.addEventListener("pointerup", onUp);
@@ -93,16 +100,15 @@ export function LocalPlayer({ room, name, color }: Props) {
     if (!g) return;
     const k = keys.current;
 
-    // Rotate the camera with Q / E.
-    if (k["KeyQ"]) camYaw.current += KEY_ROT_SPEED * delta;
-    if (k["KeyE"]) camYaw.current -= KEY_ROT_SPEED * delta;
-
-    // Camera-relative movement axes (so "forward" follows where you look).
-    const yaw = camYaw.current;
-    const forwardX = -Math.sin(yaw);
-    const forwardZ = -Math.cos(yaw);
-    const rightX = Math.cos(yaw);
-    const rightZ = -Math.sin(yaw);
+    // Rotate the camera with Q / E (desktop).
+    if (k["KeyQ"]) {
+      camYaw.current += KEY_ROT_SPEED * delta;
+      camYawTarget.current = camYaw.current;
+    }
+    if (k["KeyE"]) {
+      camYaw.current -= KEY_ROT_SPEED * delta;
+      camYawTarget.current = camYaw.current;
+    }
 
     let inF = 0;
     let inR = 0;
@@ -115,6 +121,30 @@ export function LocalPlayer({ room, name, color }: Props) {
       inF += mobileInput.moveY;
       inR += mobileInput.moveX;
     }
+
+    const isMoving = Math.hypot(inF, inR) > 0.05;
+
+    // Mobile touch look: update target yaw, then ease the camera toward it.
+    if (isMobile && mobileInput) {
+      if (mobileInput.lookDeltaX !== 0) {
+        camYawTarget.current -=
+          mobileInput.lookDeltaX * MOBILE_LOOK_SENSITIVITY;
+        mobileInput.lookDeltaX = 0;
+      }
+
+      const smooth = isMoving
+        ? MOBILE_YAW_SMOOTH_MOVE
+        : MOBILE_YAW_SMOOTH_IDLE;
+      const t = 1 - Math.exp(-smooth * delta);
+      camYaw.current += (camYawTarget.current - camYaw.current) * t;
+    }
+
+    // Camera-relative movement axes (so "forward" follows where you look).
+    const yaw = camYaw.current;
+    const forwardX = -Math.sin(yaw);
+    const forwardZ = -Math.cos(yaw);
+    const rightX = Math.cos(yaw);
+    const rightZ = -Math.sin(yaw);
 
     let dx = forwardX * inF + rightX * inR;
     let dz = forwardZ * inF + rightZ * inR;

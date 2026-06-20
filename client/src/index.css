@@ -179,6 +179,13 @@ body,
     pointer-events: none;
   }
 
+  .look-zone {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
   .joystick {
     position: absolute;
     left: 24px;
@@ -190,6 +197,7 @@ body,
     border: 2px solid rgba(148, 163, 184, 0.35);
     pointer-events: auto;
     touch-action: none;
+    z-index: 2;
   }
 
   .joystick-knob {
@@ -223,6 +231,7 @@ body,
     user-select: none;
     -webkit-user-select: none;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    z-index: 2;
   }
 
   .jump-btn:active {
